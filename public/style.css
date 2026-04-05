@@ -210,6 +210,42 @@ body {
     flex-direction: column;
 }
 
+/* Filter Bar */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed var(--border-color);
+    align-items: flex-end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+}
+
+.filter-group label {
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+.filter-group select, .filter-group input {
+    padding: 6px 10px;
+    font-size: 12px;
+    height: 30px;
+    line-height: 1;
+    box-sizing: border-box;
+}
+
+.filter-actions {
+    display: flex;
+    padding-bottom: 2px;
+}
+
 .column-headers {
     display: flex;
     padding: 0 12px 8px 12px;

@@ -35,6 +35,10 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                     テンプレート
                 </a>
+                <a href="#" class="nav-item" id="nav-archive" onclick="app.setTab('archive')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                    アーカイブ
+                </a>
             </nav>
             <button class="btn-new-task" onclick="app.openModal()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -58,6 +62,49 @@
             </header>
 
             <div class="tasks-board" id="tasks-board-view">
+                
+                <!-- Filter Bar -->
+                <div class="filter-bar" id="task-filter-bar">
+                    <div class="filter-group">
+                        <label for="filter-status">ステータス</label>
+                        <select id="filter-status" onchange="app.handleFilterChange()">
+                            <option value="">すべて</option>
+                            <option value="未着手">未着手 (To Do)</option>
+                            <option value="進行中">進行中 (In Progress)</option>
+                            <option value="レビュー依頼中">レビュー依頼中 (In Review)</option>
+                            <option value="完了">完了 (Done)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-priority">優先度</label>
+                        <select id="filter-priority" onchange="app.handleFilterChange()">
+                            <option value="">すべて</option>
+                            <option value="High">高</option>
+                            <option value="Medium">中</option>
+                            <option value="Low">低</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>期限</label>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <input type="date" id="filter-due-start" onchange="app.handleFilterChange()">
+                            <span>〜</span>
+                            <input type="date" id="filter-due-end" onchange="app.handleFilterChange()">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-assignee">担当者</label>
+                        <select id="filter-assignee" onchange="app.handleFilterChange()">
+                            <option value="">すべて</option>
+                            <option value="_unassigned">担当者なし</option>
+                            <!-- Others injected by JS -->
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn-cancel" style="padding: 6px 12px; font-size: 13px;" onclick="app.clearFilters()">クリア</button>
+                    </div>
+                </div>
+
                 <!-- Column headers -->
                 <div class="column-headers">
                     <div class="col-task">タスク</div>

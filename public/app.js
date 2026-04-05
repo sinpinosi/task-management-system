@@ -4,6 +4,13 @@ const app = {
     config: { userName: 'Guest' },
     templates: [],
     tasks: [],
+    filters: {
+        status: '',
+        priority: '',
+        dueDateStart: '',
+        dueDateEnd: '',
+        assignee: ''
+    },
     expandedNodes: new Set(), // Store expanded state
     currentTab: 'board',
     draggingNodeId: null,
@@ -74,11 +81,66 @@ const app = {
         }
     },
 
+    filterTaskTree(tasks, filters) {
+        return tasks.map(task => {
+            let matches = true;
+            if (filters.status && task.status !== filters.status) matches = false;
+            if (filters.priority && task.priority !== filters.priority) matches = false;
+            
+            if (filters.dueDateStart || filters.dueDateEnd) {
+                if (!task.dueDate) {
+                    matches = false;
+                } else {
+                    if (filters.dueDateStart && task.dueDate < filters.dueDateStart) matches = false;
+                    if (filters.dueDateEnd && task.dueDate > filters.dueDateEnd) matches = false;
+                }
+            }
+            
+            if (filters.assignee) {
+                if (filters.assignee === '_unassigned') {
+                    if (task.assignee && task.assignee.trim() !== '') matches = false;
+                } else if (task.assignee !== filters.assignee) {
+                    matches = false;
+                }
+            }
+
+            let filteredChildren = [];
+            if (task.children && task.children.length > 0) {
+                filteredChildren = this.filterTaskTree(task.children, filters);
+            }
+
+            if (matches || filteredChildren.length > 0) {
+                if (filteredChildren.length > 0 && !matches) {
+                    this.expandedNodes.add(task.id);
+                }
+                return { ...task, children: filteredChildren };
+            }
+            return null;
+        }).filter(t => t !== null);
+    },
+
     render() {
         const listEl = document.getElementById('task-list');
         listEl.innerHTML = '';
         if (this.tasks.length === 0) {
             listEl.innerHTML = '<div class="loading-state">タスクがありません。作成しましょう！</div>';
+            return;
+        }
+
+        let tasksToRender = this.tasks;
+
+        if (this.currentTab === 'archive') {
+            tasksToRender = this.tasks.filter(t => t.isArchived);
+        } else {
+            tasksToRender = this.tasks.filter(t => !t.isArchived);
+        }
+
+        if (this.filters.status || this.filters.priority || this.filters.dueDateStart || this.filters.dueDateEnd || this.filters.assignee) {
+            tasksToRender = this.filterTaskTree(tasksToRender, this.filters);
+        }
+
+        if (tasksToRender.length === 0) {
+            listEl.innerHTML = '<div class="loading-state">条件に一致するタスクがありません。</div>';
             return;
         }
 
@@ -94,7 +156,7 @@ const app = {
                     }
                 });
             };
-            findMyTasks(this.tasks, '');
+            findMyTasks(tasksToRender, '');
 
             if (myTasks.length === 0) {
                 listEl.innerHTML = '<div class="loading-state">あなたに割り当てられたタスクはありません。</div>';
@@ -106,8 +168,8 @@ const app = {
                 listEl.appendChild(el);
             });
         } else {
-            this.tasks.forEach(task => {
-                const el = this.createTaskElement(task, 0, null);
+            tasksToRender.forEach(task => {
+                const el = this.createTaskElement(task, 0, null, '', this.currentTab === 'archive');
                 listEl.appendChild(el);
             });
         }
@@ -121,17 +183,28 @@ const app = {
         document.getElementById('templates-board-view').style.display = 'none';
         document.getElementById('header-btn-refresh').style.display = 'none';
         document.getElementById('header-btn-new-template').style.display = 'none';
+        
+        const filterBar = document.getElementById('task-filter-bar');
+        if (filterBar) {
+            filterBar.style.display = (tabId === 'board' || tabId === 'my-tasks' || tabId === 'archive') ? 'flex' : 'none';
+        }
 
         if (tabId === 'board') {
             document.getElementById('nav-board').classList.add('active');
             document.getElementById('page-title').textContent = 'Tasks overview';
-            document.getElementById('tasks-board-view').style.display = 'block';
+            document.getElementById('tasks-board-view').style.display = 'flex';
             document.getElementById('header-btn-refresh').style.display = 'block';
             this.render();
         } else if (tabId === 'my-tasks') {
             document.getElementById('nav-my-tasks').classList.add('active');
             document.getElementById('page-title').textContent = 'My Tasks';
-            document.getElementById('tasks-board-view').style.display = 'block';
+            document.getElementById('tasks-board-view').style.display = 'flex';
+            document.getElementById('header-btn-refresh').style.display = 'block';
+            this.render();
+        } else if (tabId === 'archive') {
+            document.getElementById('nav-archive').classList.add('active');
+            document.getElementById('page-title').textContent = 'アーカイブ済みタスク';
+            document.getElementById('tasks-board-view').style.display = 'flex';
             document.getElementById('header-btn-refresh').style.display = 'block';
             this.render();
         } else if (tabId === 'templates') {
@@ -334,6 +407,12 @@ const app = {
                 </div>
                 <div class="col-actions task-cell">
                     <div class="task-actions">
+                        <button class="action-btn" title="${task.isArchived ? 'アーカイブから戻す' : 'アーカイブ'}" onclick="app.toggleArchive('${task.id}')">
+                            ${task.isArchived 
+                                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`
+                                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`
+                            }
+                        </button>
                         <button class="action-btn" title="Save as Template" onclick="app.saveAsTemplate('${task.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                         </button>
@@ -414,11 +493,20 @@ const app = {
             const subContainer = document.createElement('div');
             subContainer.className = 'subtasks-container open';
             task.children.forEach(child => {
-                subContainer.appendChild(this.createTaskElement(child, 0, task.id));
+                subContainer.appendChild(this.createTaskElement(child, depth + 1, task.id));
             });
             container.appendChild(subContainer);
         }
         return container;
+    },
+
+    async toggleArchive(id) {
+        const info = this.findNodeInfo(id);
+        if (!info) return;
+        
+        info.node.isArchived = !info.node.isArchived;
+        await this.updateRootOnServer(info.rootId);
+        this.render();
     },
 
     async reorderTask(dragId, targetId, position, parentId) {
@@ -477,8 +565,8 @@ const app = {
 
     updateAssigneeSelect() {
         const select = document.getElementById('task-assignee-select');
-        if (!select) return;
-        select.innerHTML = '<option value="">-- 登録済みから選択 --</option>';
+        const filterSelect = document.getElementById('filter-assignee');
+        
         const assignees = new Set();
         const traverse = (tasks) => {
             tasks.forEach(t => {
@@ -487,12 +575,54 @@ const app = {
             });
         };
         traverse(this.tasks);
-        Array.from(assignees).sort().forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a;
-            opt.textContent = a;
-            select.appendChild(opt);
-        });
+
+        const sortedAssignees = Array.from(assignees).sort();
+
+        if (select) {
+            select.innerHTML = '<option value="">-- 登録済みから選択 --</option>';
+            sortedAssignees.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a;
+                opt.textContent = a;
+                select.appendChild(opt);
+            });
+        }
+
+        if (filterSelect) {
+            const currentVal = filterSelect.value;
+            filterSelect.innerHTML = `
+                <option value="">すべて</option>
+                <option value="_unassigned">担当者なし</option>
+            `;
+            sortedAssignees.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a;
+                opt.textContent = a;
+                filterSelect.appendChild(opt);
+            });
+            if (currentVal && (currentVal === '_unassigned' || assignees.has(currentVal))) {
+                filterSelect.value = currentVal;
+            }
+        }
+    },
+
+    handleFilterChange() {
+        this.filters.status = document.getElementById('filter-status').value;
+        this.filters.priority = document.getElementById('filter-priority').value;
+        this.filters.dueDateStart = document.getElementById('filter-due-start').value;
+        this.filters.dueDateEnd = document.getElementById('filter-due-end').value;
+        this.filters.assignee = document.getElementById('filter-assignee').value;
+        this.render();
+    },
+
+    clearFilters() {
+        document.getElementById('filter-status').value = '';
+        document.getElementById('filter-priority').value = '';
+        document.getElementById('filter-due-start').value = '';
+        document.getElementById('filter-due-end').value = '';
+        document.getElementById('filter-assignee').value = '';
+        this.filters = { status: '', priority: '', dueDateStart: '', dueDateEnd: '', assignee: '' };
+        this.render();
     },
 
     findNodeInfo(id, taskList = this.tasks, rootId = null) {
