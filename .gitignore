@@ -1,0 +1,4 @@
+data/*.json
+templates/*.json
+*.log
+.DS_Store
