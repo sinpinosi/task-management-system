@@ -233,7 +233,8 @@ body {
     margin-bottom: 0;
 }
 
-.filter-group select, .filter-group input {
+.filter-group select,
+.filter-group input {
     padding: 6px 10px;
     font-size: 12px;
     height: 30px;
@@ -259,6 +260,13 @@ body {
 }
 
 /* Grid Columns */
+.col-checkbox {
+    flex: 0 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .col-task {
     flex: 1;
     min-width: 0;
@@ -612,10 +620,18 @@ textarea:focus {
 
 .btn-danger {
     background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
 }
 
 .btn-danger:hover {
     background: #DC2626;
+}
+
+.delete-btn-style:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
 }
 
 /* Helpers */
@@ -913,5 +929,35 @@ textarea:focus {
     .action-btn svg {
         width: 16px;
         height: 16px;
-    }
+}
+
+/* Segment Control for Filters */
+.segment-control {
+    display: inline-flex;
+    background: var(--bg-surface);
+    border-radius: 8px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.segment-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.segment-btn:hover {
+    color: var(--text-primary);
+}
+
+.segment-btn.active {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }

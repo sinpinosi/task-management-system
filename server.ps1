@@ -168,6 +168,26 @@ while ($listener.IsListening) {
                 } else {
                     $response.StatusCode = 400
                 }
+            }
+            elseif ($request.HttpMethod -eq "GET" -and $path -eq "/api/alarms") {
+                $alarmsFile = Join-Path $dataDirPath "alarms.json"
+                $resultJson = "[]"
+                if (Test-Path $alarmsFile) {
+                    $resultJson = [System.IO.File]::ReadAllText($alarmsFile, [System.Text.Encoding]::UTF8)
+                }
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes($resultJson)
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            }
+            elseif ($request.HttpMethod -eq "POST" -and $path -eq "/api/alarms") {
+                $sr = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                $body = $sr.ReadToEnd()
+                $sr.Close()
+                
+                $alarmsFile = Join-Path $dataDirPath "alarms.json"
+                [System.IO.File]::WriteAllText($alarmsFile, $body, [System.Text.Encoding]::UTF8)
+                
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
             } else {
                 $response.StatusCode = 404
             }

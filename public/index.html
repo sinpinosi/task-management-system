@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
                 <span>Taskflow</span>
             </div>
             <div class="user-info">
@@ -24,24 +29,61 @@
             </div>
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" id="nav-board" onclick="app.setTab('board')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
                     ボード
                 </a>
                 <a href="#" class="nav-item" id="nav-my-tasks" onclick="app.setTab('my-tasks')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
                     マイタスク
                 </a>
                 <a href="#" class="nav-item" id="nav-templates" onclick="app.setTab('templates')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
                     テンプレート
                 </a>
                 <a href="#" class="nav-item" id="nav-archive" onclick="app.setTab('archive')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                        <rect x="1" y="3" width="22" height="5"></rect>
+                        <line x1="10" y1="12" x2="14" y2="12"></line>
+                    </svg>
                     アーカイブ
+                </a>
+                <a href="#" class="nav-item" id="nav-alarms" onclick="app.setTab('alarms')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <polyline points="12 7 12 12 15 15"></polyline>
+                        <path d="M19 4l-3-3"></path>
+                        <path d="M5 4l3-3"></path>
+                    </svg>
+                    アラーム
+                </a>
+                <a href="#" class="nav-item" id="nav-trash" onclick="app.setTab('trash')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    ゴミ箱
                 </a>
             </nav>
             <button class="btn-new-task" onclick="app.openModal()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
                 新規タスク
             </button>
         </aside>
@@ -52,17 +94,25 @@
                 <h1 id="page-title">タスク一覧</h1>
                 <div class="header-actions" style="display:flex; align-items:center;">
                     <button class="btn-icon" onclick="app.loadTasks()" title="更新" id="header-btn-refresh">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.6 5.6"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.6 5.6" />
+                        </svg>
                     </button>
-                    <button class="btn-new-task" style="display:none; margin-left:12px;" id="header-btn-new-template" onclick="app.openTemplateModal()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <button class="btn-new-task" style="display:none; margin-left:12px;" id="header-btn-new-template"
+                        onclick="app.openTemplateModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
                         新規テンプレート
                     </button>
                 </div>
             </header>
 
             <div class="tasks-board" id="tasks-board-view">
-                
+
                 <!-- Filter Bar -->
                 <div class="filter-bar" id="task-filter-bar">
                     <div class="filter-group">
@@ -101,7 +151,8 @@
                         </select>
                     </div>
                     <div class="filter-actions">
-                        <button class="btn-cancel" style="padding: 6px 12px; font-size: 13px;" onclick="app.clearFilters()">クリア</button>
+                        <button class="btn-cancel" style="padding: 6px 12px; font-size: 13px;"
+                            onclick="app.clearFilters()">クリア</button>
                     </div>
                 </div>
 
@@ -114,7 +165,7 @@
                     <div class="col-priority">優先度</div>
                     <div class="col-actions"></div>
                 </div>
-                
+
                 <!-- Task List -->
                 <div class="task-list" id="task-list">
                     <!-- Tasks injected by JS -->
@@ -122,10 +173,59 @@
                 </div>
             </div>
 
+            <!-- Trash Board View -->
+            <div class="tasks-board" id="trash-board-view" style="display:none;">
+                <div class="filter-bar" id="trash-action-bar" style="display:flex; justify-content: flex-end; align-items: center;">
+                    <div class="filter-actions">
+                        <button class="btn-danger" style="padding: 6px 12px; font-size: 13px;" onclick="app.emptyTrash()">ゴミ箱を空にする</button>
+                    </div>
+                </div>
+
+                <div class="column-headers" style="padding-left: 16px;">
+                    <div class="col-task">タスク</div>
+                    <div class="col-status">元の親タスク</div>
+                    <div class="col-assignee">担当者</div>
+                    <div class="col-due">期限</div>
+                    <div class="col-actions"></div>
+                </div>
+
+                <div class="task-list" id="trash-list">
+                    <!-- Trashed tasks injected by JS -->
+                </div>
+            </div>
+
             <!-- Templates Board View -->
             <div class="tasks-board" id="templates-board-view" style="display:none;">
                 <div class="task-list" id="templates-list">
                     <!-- Templates injected by JS -->
+                </div>
+            </div>
+
+            <!-- Alarms Board View -->
+            <div class="tasks-board" id="alarms-board-view" style="display:none;">
+                <div class="filter-bar" style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px dashed var(--border-color);">
+                    <div class="segment-control">
+                        <button id="tab-active-alarms" class="segment-btn active" onclick="app.setAlarmView('active')">アクティブ</button>
+                        <button id="tab-history-alarms" class="segment-btn" onclick="app.setAlarmView('history')">履歴</button>
+                    </div>
+                    <button class="btn-new-task" id="btn-new-alarm" onclick="app.openAlarmModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        新規アラーム
+                    </button>
+                </div>
+
+                <div class="column-headers" style="padding-left: 16px;">
+                    <div class="col-task" style="flex:2">タイトル</div>
+                    <div class="col-due">通知日時</div>
+                    <div class="col-status">繰り返し</div>
+                    <div class="col-actions"></div>
+                </div>
+
+                <div class="task-list" id="alarms-list">
+                    <!-- Alarms injected by JS -->
                 </div>
             </div>
         </main>
@@ -137,26 +237,29 @@
             <div class="modal-header">
                 <h2 id="modal-title">タスク作成</h2>
                 <button class="btn-close" onclick="app.closeModal()">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
                 </button>
             </div>
             <div class="modal-body">
                 <form id="task-form" onsubmit="event.preventDefault(); app.saveTask();">
                     <input type="hidden" id="task-id">
                     <input type="hidden" id="parent-id">
-                    
+
                     <div class="form-group" id="template-group" style="display:none;">
                         <label for="task-template">テンプレート</label>
                         <select id="task-template">
                             <option value="">- テンプレートなし -</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="task-title">タイトル</label>
                         <input type="text" id="task-title" required placeholder="何をしますか？">
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="task-desc">詳細</label>
                         <textarea id="task-desc" rows="3" placeholder="詳細を追加してください..."></textarea>
@@ -172,7 +275,7 @@
                                 <option value="完了">完了 (Done)</option>
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="task-priority">優先度</label>
                             <select id="task-priority">
@@ -187,13 +290,14 @@
                         <div class="form-group">
                             <label for="task-assignee">担当者</label>
                             <div style="display: flex; gap: 8px; flex-direction: column;">
-                                <select id="task-assignee-select" onchange="document.getElementById('task-assignee').value = this.value">
+                                <select id="task-assignee-select"
+                                    onchange="document.getElementById('task-assignee').value = this.value">
                                     <option value="">-- 登録済みから選択 --</option>
                                 </select>
                                 <input type="text" id="task-assignee" placeholder="新規入力（または上記から選択）">
                             </div>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="task-due">期限</label>
                             <input type="date" id="task-due">
@@ -215,7 +319,10 @@
             <div class="modal-header">
                 <h2 id="template-modal-title">テンプレート作成</h2>
                 <button class="btn-close" onclick="app.closeTemplateModal()">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
                 </button>
             </div>
             <div class="modal-body">
@@ -224,13 +331,17 @@
                     <label>テンプレート名</label>
                     <input type="text" id="edit-template-name" placeholder="例：ウェブサイト公開チェックリスト">
                 </div>
-                
-                <h3 style="font-size:14px; margin-bottom:12px; margin-top:20px; color:var(--text-secondary);">テンプレートタスク</h3>
-                <div id="template-tasks-container" style="display:flex; flex-direction:column; gap:12px; max-height: 400px; overflow-y:auto; overflow-x:hidden; padding-right:8px;">
+
+                <h3 style="font-size:14px; margin-bottom:12px; margin-top:20px; color:var(--text-secondary);">テンプレートタスク
+                </h3>
+                <div id="template-tasks-container"
+                    style="display:flex; flex-direction:column; gap:12px; max-height: 400px; overflow-y:auto; overflow-x:hidden; padding-right:8px;">
                     <!-- dynamic rows -->
                 </div>
-                
-                <button class="action-btn" style="margin-top:16px; background:rgba(99, 102, 241, 0.1); color:var(--primary-color); padding:8px 16px; border-radius:6px; font-weight:600; width:100%; border:1px dashed var(--primary-color);" onclick="app.addTemplateTaskRow()">
+
+                <button class="action-btn"
+                    style="margin-top:16px; background:rgba(99, 102, 241, 0.1); color:var(--primary-color); padding:8px 16px; border-radius:6px; font-weight:600; width:100%; border:1px dashed var(--primary-color);"
+                    onclick="app.addTemplateTaskRow()">
                     + タスク行を追加
                 </button>
             </div>
@@ -260,6 +371,53 @@
         </div>
     </div>
 
+    <!-- Alarm Create/Edit Modal -->
+    <div class="modal-overlay" id="alarm-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="alarm-modal-title">アラーム作成</h2>
+                <button class="btn-close" onclick="app.closeAlarmModal()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alarm-form" onsubmit="event.preventDefault(); app.saveAlarm();">
+                    <input type="hidden" id="alarm-id">
+
+                    <div class="form-group">
+                        <label for="alarm-title">タイトル / 内容</label>
+                        <input type="text" id="alarm-title" required placeholder="通知の内容">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="alarm-datetime">通知日時</label>
+                            <input type="datetime-local" id="alarm-datetime" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="alarm-recurrence">繰り返し設定</label>
+                            <select id="alarm-recurrence">
+                                <option value="none">なし（単発）</option>
+                                <option value="daily">日次</option>
+                                <option value="weekly">週次</option>
+                                <option value="monthly">月次</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="app.closeAlarmModal()">キャンセル</button>
+                <button class="btn-submit" onclick="app.saveAlarm()">保存</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
+
 </html>

@@ -13,13 +13,41 @@ const app = {
     },
     expandedNodes: new Set(), // Store expanded state
     currentTab: 'board',
+    alarmView: 'active',
+    alarms: [],
     draggingNodeId: null,
     draggingParentId: null,
 
     async init() {
         await this.loadConfig();
         await this.loadTemplates();
+        await this.loadAlarms();
         await this.loadTasks();
+    },
+
+    async loadAlarms() {
+        try {
+            const res = await fetch(`${API_BASE}/alarms`);
+            if (res.ok) {
+                this.alarms = await res.json();
+            }
+        } catch (e) {
+            console.error('Failed to load alarms', e);
+            this.alarms = [];
+        }
+    },
+
+    async saveAlarmsToServer() {
+        try {
+            await fetch(`${API_BASE}/alarms`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.alarms)
+            });
+            await this.loadAlarms();
+        } catch (e) {
+            console.error('Failed to save alarms', e);
+        }
     },
 
     async loadTemplates() {
@@ -86,7 +114,7 @@ const app = {
             let matches = true;
             if (filters.status && task.status !== filters.status) matches = false;
             if (filters.priority && task.priority !== filters.priority) matches = false;
-            
+
             if (filters.dueDateStart || filters.dueDateEnd) {
                 if (!task.dueDate) {
                     matches = false;
@@ -95,7 +123,7 @@ const app = {
                     if (filters.dueDateEnd && task.dueDate > filters.dueDateEnd) matches = false;
                 }
             }
-            
+
             if (filters.assignee) {
                 if (filters.assignee === '_unassigned') {
                     if (task.assignee && task.assignee.trim() !== '') matches = false;
@@ -127,12 +155,20 @@ const app = {
             return;
         }
 
-        let tasksToRender = this.tasks;
+        const hideTrashed = (taskList) => {
+            return taskList.map(t => {
+                if (t.isTrashed) return null;
+                const children = t.children && t.children.length > 0 ? hideTrashed(t.children) : [];
+                return { ...t, children };
+            }).filter(t => t !== null);
+        };
+
+        let tasksToRender = hideTrashed(this.tasks);
 
         if (this.currentTab === 'archive') {
-            tasksToRender = this.tasks.filter(t => t.isArchived);
+            tasksToRender = tasksToRender.filter(t => t.isArchived);
         } else {
-            tasksToRender = this.tasks.filter(t => !t.isArchived);
+            tasksToRender = tasksToRender.filter(t => !t.isArchived);
         }
 
         if (this.filters.status || this.filters.priority || this.filters.dueDateStart || this.filters.dueDateEnd || this.filters.assignee) {
@@ -178,12 +214,17 @@ const app = {
     setTab(tabId) {
         this.currentTab = tabId;
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        
+
         document.getElementById('tasks-board-view').style.display = 'none';
         document.getElementById('templates-board-view').style.display = 'none';
+        const trashBoard = document.getElementById('trash-board-view');
+        if (trashBoard) trashBoard.style.display = 'none';
+        const alarmsBoard = document.getElementById('alarms-board-view');
+        if (alarmsBoard) alarmsBoard.style.display = 'none';
+
         document.getElementById('header-btn-refresh').style.display = 'none';
         document.getElementById('header-btn-new-template').style.display = 'none';
-        
+
         const filterBar = document.getElementById('task-filter-bar');
         if (filterBar) {
             filterBar.style.display = (tabId === 'board' || tabId === 'my-tasks' || tabId === 'archive') ? 'flex' : 'none';
@@ -213,6 +254,16 @@ const app = {
             document.getElementById('templates-board-view').style.display = 'block';
             document.getElementById('header-btn-new-template').style.display = 'flex';
             this.renderTemplates();
+        } else if (tabId === 'alarms') {
+            document.getElementById('nav-alarms').classList.add('active');
+            document.getElementById('page-title').textContent = 'アラーム';
+            document.getElementById('alarms-board-view').style.display = 'block';
+            this.loadAlarms().then(() => this.renderAlarms());
+        } else if (tabId === 'trash') {
+            document.getElementById('nav-trash').classList.add('active');
+            document.getElementById('page-title').textContent = 'ゴミ箱';
+            if (document.getElementById('trash-board-view')) document.getElementById('trash-board-view').style.display = 'block';
+            this.renderTrashList();
         }
     },
 
@@ -231,9 +282,9 @@ const app = {
             row.style.alignItems = 'center';
             row.style.justifyContent = 'space-between';
             row.style.padding = '16px';
-            
+
             const taskCount = tpl.tasks ? tpl.tasks.length : 0;
-            
+
             row.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:4px;">
                     <div style="font-weight:600; font-size:15px;">${tpl.name}</div>
@@ -255,7 +306,7 @@ const app = {
     openTemplateModal(id = '') {
         const container = document.getElementById('template-tasks-container');
         container.innerHTML = '';
-        
+
         if (id) {
             const tpl = this.templates.find(t => t.id === id);
             document.getElementById('template-modal-title').textContent = 'テンプレートを編集';
@@ -272,7 +323,7 @@ const app = {
             document.getElementById('edit-template-name').value = '';
             this.addTemplateTaskRow();
         }
-        
+
         document.getElementById('template-editor-modal').classList.add('active');
     },
 
@@ -290,7 +341,7 @@ const app = {
         row.style.padding = '12px';
         row.style.borderRadius = '8px';
         row.style.border = '1px solid var(--border-color)';
-        
+
         row.innerHTML = `
             <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
                 <input type="text" class="tpl-task-title" placeholder="タスクタイトル（例：設計）" value="${title}" required style="padding:8px;">
@@ -339,7 +390,7 @@ const app = {
             await fetch(`${API_BASE}/templates/${id}`, { method: 'DELETE' });
             await this.loadTemplates();
             this.renderTemplates();
-        } catch(e) {
+        } catch (e) {
             console.error(e);
         }
     },
@@ -347,7 +398,7 @@ const app = {
     createTaskElement(task, depth, parentId = null, parentTitle = '', isFlatView = false) {
         const container = document.createElement('div');
         container.className = 'task-node';
-        
+
         const hasChildren = task.children && task.children.length > 0;
         const isExpanded = this.expandedNodes.has(task.id);
 
@@ -363,7 +414,7 @@ const app = {
         // Render main row
         const row = document.createElement('div');
         row.className = 'task-item';
-        
+
         // Depth indent base (px)
         const indentPadding = depth * 24;
 
@@ -377,10 +428,10 @@ const app = {
                 <div class="col-task task-cell" style="padding-left: ${indentPadding}px; flex-direction: row; align-items: center; gap: 8px;">
                     ${!isFlatView && hasChildren ? `
                         <div class="toggle-subtasks" onclick="app.toggleExpand('${task.id}')">
-                            ${isExpanded 
-                                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>`
-                                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>`
-                            }
+                            ${isExpanded
+                    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>`
+                    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>`
+                }
                         </div>
                     ` : `<div style="width:24px;height:24px"></div>`}
                     <div style="display:flex; flex-direction:column; overflow:hidden;">
@@ -408,10 +459,10 @@ const app = {
                 <div class="col-actions task-cell">
                     <div class="task-actions">
                         <button class="action-btn" title="${task.isArchived ? 'アーカイブから戻す' : 'アーカイブ'}" onclick="app.toggleArchive('${task.id}')">
-                            ${task.isArchived 
-                                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`
-                                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`
-                            }
+                            ${task.isArchived
+                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`
+                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`
+            }
                         </button>
                         <button class="action-btn" title="Save as Template" onclick="app.saveAsTemplate('${task.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
@@ -419,7 +470,7 @@ const app = {
                         <button class="action-btn" title="Edit" onclick="app.editTask('${task.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button class="action-btn delete" title="Delete" onclick="app.openDeleteModal('${task.id}')">
+                        <button class="action-btn delete" title="Delete" onclick="app.moveToTrash('${task.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
@@ -431,7 +482,7 @@ const app = {
         if (!isFlatView) {
             const myParentId = parentId || 'root';
             row.draggable = true;
-            
+
             row.addEventListener('dragstart', (e) => {
                 e.stopPropagation();
                 app.draggingNodeId = task.id;
@@ -459,7 +510,7 @@ const app = {
 
                 const bounding = row.getBoundingClientRect();
                 const offset = bounding.y + (bounding.height / 2);
-                
+
                 row.classList.remove('drag-over-top', 'drag-over-bottom');
                 if (e.clientY < offset) {
                     row.classList.add('drag-over-top');
@@ -477,7 +528,7 @@ const app = {
                 e.preventDefault();
                 e.stopPropagation();
                 row.classList.remove('drag-over-top', 'drag-over-bottom');
-                
+
                 const dragId = app.draggingNodeId;
                 if (!dragId || dragId === task.id || app.draggingParentId !== myParentId) return;
 
@@ -503,7 +554,7 @@ const app = {
     async toggleArchive(id) {
         const info = this.findNodeInfo(id);
         if (!info) return;
-        
+
         info.node.isArchived = !info.node.isArchived;
         await this.updateRootOnServer(info.rootId);
         this.render();
@@ -531,7 +582,7 @@ const app = {
 
         const [dragItem] = listToUpdate.splice(dragIndex, 1);
         const newTargetIndex = listToUpdate.findIndex(t => t.id === targetId);
-        
+
         if (position === 'before') {
             listToUpdate.splice(newTargetIndex, 0, dragItem);
         } else {
@@ -566,7 +617,7 @@ const app = {
     updateAssigneeSelect() {
         const select = document.getElementById('task-assignee-select');
         const filterSelect = document.getElementById('filter-assignee');
-        
+
         const assignees = new Set();
         const traverse = (tasks) => {
             tasks.forEach(t => {
@@ -626,7 +677,7 @@ const app = {
     },
 
     findNodeInfo(id, taskList = this.tasks, rootId = null) {
-        for (let i=0; i<taskList.length; i++) {
+        for (let i = 0; i < taskList.length; i++) {
             let task = taskList[i];
             let currentRoot = rootId || task.id;
             if (task.id === id) {
@@ -646,18 +697,18 @@ const app = {
         document.getElementById('task-id').value = '';
         document.getElementById('parent-id').value = parentId;
         document.getElementById('modal-title').textContent = parentId ? 'サブタスク作成' : 'タスク作成';
-        
+
         const tmplGroup = document.getElementById('template-group');
         if (tmplGroup) {
             document.getElementById('task-template').value = '';
             tmplGroup.style.display = (this.templates && this.templates.length > 0) ? 'block' : 'none';
         }
-        
+
         // Defaults
         document.getElementById('task-status').value = '未着手';
         document.getElementById('task-priority').value = 'Medium';
         document.getElementById('task-assignee').value = this.config.userName || '';
-        
+
         const selectEl = document.getElementById('task-assignee-select');
         const opts = Array.from(selectEl.options).map(o => o.value);
         if (opts.includes(this.config.userName)) {
@@ -684,7 +735,7 @@ const app = {
 
         document.getElementById('task-id').value = info.node.id;
         document.getElementById('parent-id').value = ''; // Update doesn't change parent
-        
+
         document.getElementById('task-title').value = info.node.title;
         document.getElementById('task-desc').value = info.node.description || '';
         document.getElementById('task-status').value = info.node.status;
@@ -703,7 +754,7 @@ const app = {
         const title = document.getElementById('task-title').value.trim();
         const assignee = document.getElementById('task-assignee').value.trim();
         const dueDate = document.getElementById('task-due').value;
-        
+
         if (!title) {
             alert("タイトルは必須です。");
             return;
@@ -798,7 +849,7 @@ const app = {
     async saveAsTemplate(taskId) {
         const info = this.findNodeInfo(taskId);
         if (!info) return;
-        
+
         const tmplName = prompt("新しいテンプレートの名前を入力してください:");
         if (!tmplName) return;
 
@@ -848,6 +899,131 @@ const app = {
         }
     },
 
+    async moveToTrash(id) {
+        const info = this.findNodeInfo(id);
+        if (!info) return;
+
+        info.node.isTrashed = true;
+        await this.updateRootOnServer(info.rootId);
+        if (this.currentTab === 'board' || this.currentTab === 'my-tasks' || this.currentTab === 'archive') {
+            this.render();
+        } else if (this.currentTab === 'trash') {
+            this.renderTrashList();
+        }
+    },
+
+    renderTrashList() {
+        const listEl = document.getElementById('trash-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const trashedTasks = [];
+        const findTrashed = (taskList, parentTitle = '') => {
+            taskList.forEach(task => {
+                if (task.isTrashed) {
+                    trashedTasks.push({ task, parentTitle });
+                } else if (task.children && task.children.length > 0) {
+                    findTrashed(task.children, task.title);
+                }
+            });
+        };
+        findTrashed(this.tasks, '');
+
+        if (trashedTasks.length === 0) {
+            listEl.innerHTML = '<div class="loading-state">ゴミ箱には何もありません。</div>';
+            return;
+        }
+
+        trashedTasks.forEach(({ task, parentTitle }) => {
+            const row = document.createElement('div');
+            row.className = 'task-item task-row';
+            // borderBottom is removed to fix the strange box UI
+            row.innerHTML = `
+                <div class="col-task task-cell" style="flex-direction: column; align-items: flex-start; justify-content: center;">
+                    <div class="task-title" style="font-size: 14px; font-weight: 500;">${task.title}</div>
+                    <div class="task-desc" style="font-size: 12px; color: var(--text-secondary);">${task.description || ''}</div>
+                </div>
+                <div class="col-status task-cell" style="font-size: 13px; color: var(--text-secondary);">
+                    ${parentTitle || '-'}
+                </div>
+                <div class="col-assignee task-cell" style="font-size: 13px;">
+                    ${task.assignee || '-'}
+                </div>
+                <div class="col-due task-cell" style="font-size: 13px;">
+                    ${task.dueDate || '-'}
+                </div>
+                <div class="col-actions task-cell">
+                    <div class="task-actions">
+                        <button class="action-btn" title="復元" onclick="app.restoreTask('${task.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
+                        </button>
+                        <button class="action-btn delete" title="完全に削除" onclick="app.requestDeleteTask('${task.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            listEl.appendChild(row);
+        });
+    },
+
+    async restoreTask(id) {
+        const info = this.findNodeInfo(id);
+        if (!info) return;
+        info.node.isTrashed = false;
+        await this.updateRootOnServer(info.rootId);
+        this.renderTrashList();
+    },
+
+    async emptyTrash() {
+        if (!confirm("ゴミ箱内のすべてのタスクを完全に削除しますか？")) return;
+        
+        const trashedIds = [];
+        const findTrashed = (taskList) => {
+            taskList.forEach(task => {
+                if (task.isTrashed) {
+                    trashedIds.push(task.id);
+                } else if (task.children) {
+                    findTrashed(task.children);
+                }
+            });
+        };
+        findTrashed(this.tasks);
+
+        if (trashedIds.length === 0) {
+            return alert("ゴミ箱はすでに空です");
+        }
+
+        for (const id of trashedIds) {
+            await this.deleteTaskInternal(id);
+        }
+        
+        this.renderTrashList();
+    },
+
+    async requestDeleteTask(id) {
+        if (!confirm("このタスクを完全に削除しますか？この操作は元に戻せません。")) return;
+        await this.deleteTaskInternal(id);
+        this.renderTrashList();
+    },
+
+    async deleteTaskInternal(id) {
+        const info = this.findNodeInfo(id);
+        if (!info) return;
+
+        if (info.node.id === info.rootId) {
+            try {
+                await fetch(`${API_BASE}/tasks/${info.rootId}`, { method: 'DELETE' });
+                this.tasks.splice(this.tasks.findIndex(t => t.id === info.rootId), 1);
+            } catch (e) {
+                console.error("Failed to delete", e);
+            }
+        } else {
+            info.parentList.splice(info.index, 1);
+            await this.updateRootOnServer(info.rootId);
+        }
+    },
+
     openDeleteModal(id) {
         document.getElementById('delete-task-id').value = id;
         document.getElementById('delete-modal').classList.add('active');
@@ -881,6 +1057,173 @@ const app = {
 
         this.closeDeleteModal();
         this.render();
+    },
+
+    setAlarmView(view) {
+        this.alarmView = view;
+        document.getElementById('tab-active-alarms').classList.toggle('active', view === 'active');
+        document.getElementById('tab-history-alarms').classList.toggle('active', view === 'history');
+        this.renderAlarms();
+    },
+
+    renderAlarms() {
+        const listEl = document.getElementById('alarms-list');
+        listEl.innerHTML = '';
+        
+        const filtered = this.alarms.filter(a => this.alarmView === 'active' ? a.status === 'pending' : a.status === 'completed');
+        
+        if (filtered.length === 0) {
+            listEl.innerHTML = '<div class="loading-state">アラームがありません。</div>';
+            return;
+        }
+
+        filtered.sort((a, b) => new Date(a.triggerTime) - new Date(b.triggerTime));
+
+        filtered.forEach(alarm => {
+            const row = document.createElement('div');
+            row.className = 'task-item task-row';
+            row.style.paddingLeft = '16px';
+            if (alarm.status === 'completed') {
+                row.style.opacity = '0.6';
+                row.style.background = 'var(--bg-surface)';
+            }
+            
+            const recLabel = {
+                'none': 'なし',
+                'daily': '日次',
+                'weekly': '週次',
+                'monthly': '月次'
+            }[alarm.recurrence] || 'なし';
+
+            // format date
+            const dt = new Date(alarm.triggerTime);
+            const dtStr = dt.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+            row.innerHTML = `
+                <div class="col-task" style="flex:2">
+                    <div style="font-weight: 500;">${alarm.title}</div>
+                </div>
+                <div class="col-due">
+                    ${dtStr}
+                </div>
+                <div class="col-status">
+                    <span class="badge prio-medium">${recLabel}</span>
+                </div>
+                <div class="col-actions">
+                    <div class="task-actions">
+                        ${alarm.status === 'completed' ? `
+                            <button class="action-btn" title="再設定してアクティブにする" onclick="app.copyAlarmToActive('${alarm.id}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 2v6h-6M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                </svg>
+                            </button>
+                        ` : `
+                            <button class="action-btn" title="編集" onclick="app.openAlarmModal('${alarm.id}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <button class="action-btn" title="完了する" onclick="app.completeAlarm('${alarm.id}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                        `}
+                        <button class="action-btn delete" title="削除" onclick="app.deleteAlarm('${alarm.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            listEl.appendChild(row);
+        });
+    },
+
+    openAlarmModal(id = '') {
+        const form = document.getElementById('alarm-form');
+        form.reset();
+        document.getElementById('alarm-id').value = '';
+        document.getElementById('alarm-modal-title').textContent = '新規アラーム作成';
+        
+        // Default to now + 30 mins
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 30);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('alarm-datetime').value = now.toISOString().slice(0, 16);
+
+        if (id) {
+            const alarm = this.alarms.find(a => a.id === id);
+            if (alarm) {
+                document.getElementById('alarm-modal-title').textContent = 'アラーム編集';
+                document.getElementById('alarm-id').value = alarm.id;
+                document.getElementById('alarm-title').value = alarm.title;
+                document.getElementById('alarm-datetime').value = alarm.triggerTime;
+                document.getElementById('alarm-recurrence').value = alarm.recurrence || 'none';
+            }
+        }
+        document.getElementById('alarm-modal').classList.add('active');
+    },
+
+    closeAlarmModal() {
+        document.getElementById('alarm-modal').classList.remove('active');
+    },
+
+    async saveAlarm() {
+        const id = document.getElementById('alarm-id').value;
+        const title = document.getElementById('alarm-title').value.trim();
+        const datetime = document.getElementById('alarm-datetime').value;
+        const recurrence = document.getElementById('alarm-recurrence').value;
+
+        if (!title || !datetime) {
+            alert("タイトルと通知日時は必須です。");
+            return;
+        }
+
+        if (id) {
+            const alarm = this.alarms.find(a => a.id === id);
+            if (alarm) {
+                alarm.title = title;
+                alarm.triggerTime = datetime;
+                alarm.recurrence = recurrence;
+                alarm.status = 'pending';
+            }
+        } else {
+            this.alarms.push({
+                id: 'al_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                title: title,
+                triggerTime: datetime,
+                recurrence: recurrence,
+                status: 'pending'
+            });
+        }
+
+        await this.saveAlarmsToServer();
+        this.closeAlarmModal();
+        if (this.currentTab === 'alarms') {
+            this.setAlarmView('active'); // show active tab
+        }
+    },
+
+    async deleteAlarm(id) {
+        if (!confirm("このアラームを削除してもよろしいですか？")) return;
+        this.alarms = this.alarms.filter(a => a.id !== id);
+        await this.saveAlarmsToServer();
+        if (this.currentTab === 'alarms') this.renderAlarms();
+    },
+
+    async completeAlarm(id) {
+        const alarm = this.alarms.find(a => a.id === id);
+        if (!alarm) return;
+        alarm.status = 'completed';
+        await this.saveAlarmsToServer();
+        if (this.currentTab === 'alarms') this.renderAlarms();
+    },
+
+    copyAlarmToActive(id) {
+        const alarm = this.alarms.find(a => a.id === id);
+        if (!alarm) return;
+        
+        this.openAlarmModal();
+        document.getElementById('alarm-modal-title').textContent = '再設定';
+        document.getElementById('alarm-title').value = alarm.title;
+        document.getElementById('alarm-recurrence').value = alarm.recurrence || 'none';
+        // id stays empty to create a new record
     }
 };
 
