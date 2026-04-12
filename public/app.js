@@ -20,6 +20,7 @@ const app = {
     pomodoros: [],
     activePomodoroId: null,
     pomodoroInterval: null,
+    _alarmWriteQueue: null,
 
     async init() {
         await this.loadConfig();
@@ -82,17 +83,33 @@ const app = {
         }
     },
 
+    // alarms.jsonへの書き込みを直列化するキュー。
+    // 複数の非同期操作が同時に「読み込み→加工→書き込み」を行うと
+    // 後から書いた側が先の変更を上書き消去する競合が起きるため、
+    // このメソッドを通すことで操作を1つずつ順番に実行する。
+    _enqueueAlarmWrite(fn) {
+        const prev = this._alarmWriteQueue || Promise.resolve();
+        const next = prev.then(() => fn()).catch(e => console.error('Alarm write error:', e));
+        // キューの末尾を更新（エラーで chain が切れないよう catch 済みにする）
+        this._alarmWriteQueue = next.catch(() => {});
+        return next;
+    },
+
     async saveAlarmsToServer() {
-        try {
-            await fetch(`${API_BASE}/alarms`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.alarms)
-            });
-            await this.loadAlarms();
-        } catch (e) {
-            console.error('Failed to save alarms', e);
-        }
+        // 書き込み時点の this.alarms をキャプチャしてキューに積む
+        const snapshot = [...this.alarms];
+        return this._enqueueAlarmWrite(async () => {
+            try {
+                await fetch(`${API_BASE}/alarms`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(snapshot)
+                });
+                await this.loadAlarms();
+            } catch (e) {
+                console.error('Failed to save alarms', e);
+            }
+        });
     },
 
     async loadTemplates() {
@@ -520,6 +537,9 @@ const app = {
                         <button class="action-btn" title="リセット" onclick="app.resetPomodoro('${p.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                         </button>
+                        <button class="action-btn" title="通知テスト" onclick="app.testPomodoroNotification('${p.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                        </button>
                         <button class="action-btn delete" title="削除" onclick="app.deletePomodoro('${p.id}')">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
@@ -626,46 +646,35 @@ const app = {
         }
     },
 
-    async triggerPomodoroNotification(pom) {
-        // Capture indices and names IMMEDIATELY before any 'await' 
-        // to avoid race condition with tickPomodoro's synchronous increments.
+    triggerPomodoroNotification(pom) {
         const finishedStep = pom.steps[pom.currentStepIndex];
         const nextStepIndex = (pom.currentStepIndex + 1) % pom.steps.length;
         const nextStep = pom.steps[nextStepIndex];
-        const pomTitle = pom.title;
         const hasNext = pom.steps.length > 1;
 
-        // Synchronize with server first to avoid overwriting completed statuses
-        await this.loadAlarms();
+        let title = `${pom.title}\n${finishedStep.name}`;
+        if (hasNext) title += `\n（next:${nextStep.name}）`;
 
-        let title = `${pomTitle}\n${finishedStep.name}`;
-        if (hasNext) {
-            title += `\n（next:${nextStep.name}）`;
-        }
+        console.log('[Pomodoro] triggerPomodoroNotification:', title);
 
-        // Clean up old completed pomodoro notifications (older than 2 hours) to keep alarms.json slim
-        const now = new Date();
-        const twoHoursAgo = now.getTime() - (2 * 60 * 60 * 1000);
-        this.alarms = this.alarms.filter(a => {
-            if (a.id.startsWith('pom_notif_') && a.status === 'completed') {
-                const ts = parseInt(a.id.replace('pom_notif_', ''));
-                if (ts < twoHoursAgo) return false;
-            }
-            return true;
+        const id = Date.now();
+        fetch(`${API_BASE}/pom-notifications/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        }).then(r => {
+            console.log('[Pomodoro] notification sent, status:', r.status);
+        }).catch(e => {
+            console.error('[Pomodoro] fetch failed:', e);
         });
+    },
 
-        const alarmDateStr = now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
-
-        const newAlarm = {
-            id: 'pom_notif_' + now.getTime(),
-            title: title,
-            triggerTime: alarmDateStr,
-            recurrence: 'none',
-            status: 'pending'
-        };
-
-        this.alarms.push(newAlarm);
-        await this.saveAlarmsToServer();
+    // デバッグ用: 通知チェーンを直接テストする
+    testPomodoroNotification(id) {
+        const pom = this.pomodoros.find(p => p.id === id);
+        if (!pom) return;
+        const fakePom = { ...pom, currentStepIndex: 0 };
+        this.triggerPomodoroNotification(fakePom);
     },
 
     renderTemplates() {
@@ -1462,8 +1471,8 @@ const app = {
 
     setAlarmView(view) {
         this.alarmView = view;
-        document.getElementById('tab-active-alarms').classList.toggle('active', view === 'active');
-        document.getElementById('tab-history-alarms').classList.toggle('active', view === 'history');
+        document.getElementById('tab-active-alarms').classList.toggle('alarm-tab-active', view === 'active');
+        document.getElementById('tab-history-alarms').classList.toggle('alarm-tab-active', view === 'history');
         this.renderAlarms();
     },
 

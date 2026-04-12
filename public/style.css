@@ -964,6 +964,39 @@ textarea:focus {
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
+/* Alarm view tab bar */
+.alarm-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.alarm-tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 8px 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.alarm-tab-btn:hover {
+    color: var(--text-primary);
+}
+
+.alarm-tab-btn.alarm-tab-active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+
 /* Pomodoro Grid */
 .pomodoro-grid {
     display: grid;

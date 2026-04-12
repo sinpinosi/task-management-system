@@ -24,8 +24,9 @@ $configObj = $configContent | ConvertFrom-Json
 $dataDir = $configObj.dataDirectoryPath
 if (-not $dataDir) { $dataDir = "./data" }
 
-$alarmsFile = Join-Path (Join-Path $baseDir $dataDir) "alarms.json"
-$logFile    = Join-Path $baseDir "alarm_monitor.log"
+$dataDirFull = Join-Path $baseDir $dataDir
+$alarmsFile  = Join-Path $dataDirFull "alarms.json"
+$logFile     = Join-Path $baseDir "alarm_monitor.log"
 
 # ===== Logging =====
 function Write-Log {
@@ -132,7 +133,6 @@ while ($true) {
                         } elseif ($latestAlarms.Count -eq 0) {
                             $json = "[]"
                         }
-                        $json = [Regex]::Unescape($json)
 
                         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
                         [System.IO.File]::WriteAllText($alarmsFile, $json, $utf8NoBom)
@@ -144,6 +144,23 @@ while ($true) {
             }
         } catch {
             Write-Log "Error in monitor loop: $_"
+        }
+    }
+
+    # ===== ポモドーロ通知ファイルを処理 =====
+    # pom_notif_<timestamp>.json が存在したらポップアップを表示して削除する。
+    # alarms.json とは独立したファイルのため競合しない。
+    $notifFiles = @(Get-ChildItem -Path $dataDirFull -Filter "pom_notif_*.json" -ErrorAction SilentlyContinue)
+    foreach ($nf in $notifFiles) {
+        try {
+            $nc = [System.IO.File]::ReadAllText($nf.FullName, [System.Text.Encoding]::UTF8)
+            $notif = $nc | ConvertFrom-Json
+            Remove-Item $nf.FullName -Force
+            Write-Log "Triggering pom notification: $($notif.title)"
+            Show-BigAlarm -title $notif.title
+            Write-Log "Pom notification popup closed."
+        } catch {
+            Write-Log "Error processing pom notification $($nf.Name): $_"
         }
     }
 

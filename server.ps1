@@ -188,11 +188,26 @@ while ($listener.IsListening) {
                 $sr = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
                 $body = $sr.ReadToEnd()
                 $sr.Close()
-                
+
                 $alarmsFile = Join-Path $dataDirPath "alarms.json"
                 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
                 [System.IO.File]::WriteAllText($alarmsFile, $body, $utf8NoBom)
-                
+
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            }
+            elseif ($request.HttpMethod -eq "POST" -and $path -match '^/api/pom-notifications/([0-9]+)$') {
+                # ポモドーロ通知専用。1通知 = 1ファイル (pom_notif_<id>.json) に書くだけ。
+                # alarms.json を読み書きしないので競合が発生しない。
+                $notifId = $Matches[1]
+                $sr = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                $body = $sr.ReadToEnd()
+                $sr.Close()
+
+                $notifFile = Join-Path $dataDirPath "pom_notif_$notifId.json"
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText($notifFile, $body, $utf8NoBom)
+
                 $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                 $response.OutputStream.Write($buffer, 0, $buffer.Length)
             }

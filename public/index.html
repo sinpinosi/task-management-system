@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Taskflow - ローカルタスク管理</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260412e">
 </head>
 
 <body>
@@ -229,12 +229,24 @@
             <!-- Alarms Board View -->
             <div class="tasks-board" id="alarms-board-view" style="display:none;">
                 <div class="filter-bar"
-                    style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px dashed var(--border-color);">
-                    <div class="segment-control">
-                        <button id="tab-active-alarms" class="segment-btn active"
-                            onclick="app.setAlarmView('active')">アクティブ</button>
-                        <button id="tab-history-alarms" class="segment-btn"
-                            onclick="app.setAlarmView('history')">履歴</button>
+                    style="display:flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+                    <div class="alarm-tab-bar">
+                        <button id="tab-active-alarms" class="alarm-tab-btn alarm-tab-active"
+                            onclick="app.setAlarmView('active')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;vertical-align:-2px;">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            アクティブ
+                        </button>
+                        <button id="tab-history-alarms" class="alarm-tab-btn"
+                            onclick="app.setAlarmView('history')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;vertical-align:-2px;">
+                                <polyline points="9 11 12 14 22 4"></polyline>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 0 2-2h11"></path>
+                            </svg>
+                            履歴
+                        </button>
                     </div>
                     <button class="btn-new-task" id="btn-new-alarm" onclick="app.openAlarmModal()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -514,7 +526,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260412e"></script>
 </body>
 
 </html>
