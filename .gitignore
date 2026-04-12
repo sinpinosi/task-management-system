@@ -1,6 +1,7 @@
 data/*.json
 templates/*.json
 *.log
+*.lock
 .DS_Store
 機能追加変更依頼書*.md
 config.json

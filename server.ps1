@@ -77,13 +77,14 @@ while ($listener.IsListening) {
             }
             elseif ($request.HttpMethod -eq "GET" -and $path -eq "/api/tasks") {
                 $tasks = @()
-                $files = Get-ChildItem -Path $dataDirPath -Filter "*.json"
+                $files = Get-ChildItem -Path $dataDirPath -Filter "*.json" | Where-Object { $_.Name -ne "alarms.json" }
                 foreach ($file in $files) {
                     try {
                         $content = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
                         $null = $content | ConvertFrom-Json # simple validate
                         $tasks += $content
-                    } catch {
+                    }
+                    catch {
                         # Ignore invalid files
                     }
                 }
@@ -100,7 +101,8 @@ while ($listener.IsListening) {
                             $content = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
                             $null = $content | ConvertFrom-Json
                             $tmpls += $content
-                        } catch { }
+                        }
+                        catch { }
                     }
                 }
                 $resultJson = "[" + ($tmpls -join ",") + "]"
@@ -116,11 +118,12 @@ while ($listener.IsListening) {
                     $sr.Close()
                     
                     $outFile = Join-Path $dataDirPath "$taskId.json"
-                    [System.IO.File]::WriteAllText($outFile, $body, [System.Text.Encoding]::UTF8)
+                    $utf8NoBom = New-Object System.Text.UTF8Encoding($false); [System.IO.File]::WriteAllText($outFile, $body, $utf8NoBom)
                     
                     $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                     $response.OutputStream.Write($buffer, 0, $buffer.Length)
-                } else {
+                }
+                else {
                     $response.StatusCode = 400
                 }
             }
@@ -133,11 +136,12 @@ while ($listener.IsListening) {
                     $sr.Close()
                     
                     $outFile = Join-Path $tmplDirPath "$tplId.json"
-                    [System.IO.File]::WriteAllText($outFile, $body, [System.Text.Encoding]::UTF8)
+                    $utf8NoBom = New-Object System.Text.UTF8Encoding($false); [System.IO.File]::WriteAllText($outFile, $body, $utf8NoBom)
                     
                     $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                     $response.OutputStream.Write($buffer, 0, $buffer.Length)
-                } else {
+                }
+                else {
                     $response.StatusCode = 400
                 }
             }
@@ -151,7 +155,8 @@ while ($listener.IsListening) {
                     }
                     $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                     $response.OutputStream.Write($buffer, 0, $buffer.Length)
-                } else {
+                }
+                else {
                     $response.StatusCode = 400
                 }
             }
@@ -165,7 +170,8 @@ while ($listener.IsListening) {
                     }
                     $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                     $response.OutputStream.Write($buffer, 0, $buffer.Length)
-                } else {
+                }
+                else {
                     $response.StatusCode = 400
                 }
             }
@@ -184,14 +190,17 @@ while ($listener.IsListening) {
                 $sr.Close()
                 
                 $alarmsFile = Join-Path $dataDirPath "alarms.json"
-                [System.IO.File]::WriteAllText($alarmsFile, $body, [System.Text.Encoding]::UTF8)
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText($alarmsFile, $body, $utf8NoBom)
                 
                 $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                 $response.OutputStream.Write($buffer, 0, $buffer.Length)
-            } else {
+            }
+            else {
                 $response.StatusCode = 404
             }
-        } else {
+        }
+        else {
             # Serve Static Files
             if ($path -eq "/") { $path = "/index.html" }
             $filePath = Join-Path $baseDir "public$path"
@@ -200,21 +209,25 @@ while ($listener.IsListening) {
                 $ext = [System.IO.Path]::GetExtension($filePath).ToLower()
                 switch ($ext) {
                     ".html" { $response.ContentType = "text/html; charset=utf-8" }
-                    ".css"  { $response.ContentType = "text/css; charset=utf-8" }
-                    ".js"   { $response.ContentType = "application/javascript; charset=utf-8" }
+                    ".css" { $response.ContentType = "text/css; charset=utf-8" }
+                    ".js" { $response.ContentType = "application/javascript; charset=utf-8" }
                     default { $response.ContentType = "application/octet-stream" }
                 }
                 $bytes = [System.IO.File]::ReadAllBytes($filePath)
                 $response.ContentLength64 = $bytes.Length
                 $response.OutputStream.Write($bytes, 0, $bytes.Length)
-            } else {
+            }
+            else {
                 $response.StatusCode = 404
             }
         }
         
         $response.Close()
-    } catch {
+    }
+    catch {
         # Catch errors so server doesn't crash on bad requests
         Write-Host "Error processing request: $_"
     }
 }
+
+

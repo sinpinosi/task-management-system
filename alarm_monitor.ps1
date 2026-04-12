@@ -1,13 +1,20 @@
-﻿$baseDir = $PSScriptRoot
+$baseDir = $PSScriptRoot
 
-# 多重起動防止 (Mutex)
-$mutexName = "Global\TaskflowAlarmMonitor_Mutex"
-$createdNew = $false
-$mutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
-if (-not $createdNew) {
-    # 既に別の監視プロセスが起動しているため、静かに終了する
+# ===== Single-instance lock (file lock - OS releases handle on process exit) =====
+$lockFile = Join-Path $baseDir "alarm_monitor.lock"
+$lockStream = $null
+try {
+    $lockStream = [System.IO.File]::Open(
+        $lockFile,
+        [System.IO.FileMode]::OpenOrCreate,
+        [System.IO.FileAccess]::ReadWrite,
+        [System.IO.FileShare]::None
+    )
+} catch {
     exit
 }
+
+# ===== Config =====
 $configPath = Join-Path $baseDir "config.json"
 $configContent = '{"userName":"Guest", "dataDirectoryPath":"./data"}'
 if (Test-Path $configPath) {
@@ -15,41 +22,60 @@ if (Test-Path $configPath) {
 }
 $configObj = $configContent | ConvertFrom-Json
 $dataDir = $configObj.dataDirectoryPath
-if (-not $dataDir) {
-    $dataDir = "./data"
-}
+if (-not $dataDir) { $dataDir = "./data" }
 
 $alarmsFile = Join-Path (Join-Path $baseDir $dataDir) "alarms.json"
+$logFile    = Join-Path $baseDir "alarm_monitor.log"
+
+# ===== Logging =====
+function Write-Log {
+    param([string]$message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    [System.IO.File]::AppendAllText(
+        $logFile,
+        "[$timestamp] $message`r`n",
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+}
+
+Write-Log "Alarm Monitor started. Monitoring $alarmsFile"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# Build Japanese strings from Unicode code points (encoding-independent)
+# 0x3010=[ 0x30A2=A 0x30E9=ra 0x30FC=- 0x30E0=mu 0x3011=] => [alarm]
+# 0x78BA=confirm 0x8A8D=ok 0x3057=shi 0x307E=ma 0x3057=shi 0x305F=ta
+$alarmHeader = [System.String]::new([char[]]@(0x3010, 0x30A2, 0x30E9, 0x30FC, 0x30E0, 0x3011))
+$confirmText  = [System.String]::new([char[]]@(0x78BA, 0x8A8D, 0x3057, 0x307E, 0x3057, 0x305F))
+
+# ===== Alarm popup =====
 function Show-BigAlarm {
     param([string]$title)
-    
+
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Taskflow Alarm"
-    $form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#1C212D")
-    $form.Width = 800
-    $form.Height = 600
-    $form.StartPosition = "CenterScreen"
-    $form.TopMost = $true
+    $form.Text            = "Taskflow Alarm"
+    $form.BackColor       = [System.Drawing.ColorTranslator]::FromHtml("#1C212D")
+    $form.Width           = 800
+    $form.Height          = 600
+    $form.StartPosition   = "CenterScreen"
+    $form.TopMost         = $true
     $form.FormBorderStyle = "FixedDialog"
 
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "【アラーム】`n" + $title
-    $label.Font = New-Object System.Drawing.Font("Meiryo", 32, [System.Drawing.FontStyle]::Bold)
+    $label           = New-Object System.Windows.Forms.Label
+    $label.Text      = $alarmHeader + "`n" + $title
+    $label.Font      = New-Object System.Drawing.Font("Meiryo", 32, [System.Drawing.FontStyle]::Bold)
     $label.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#E2E8F0")
-    $label.AutoSize = $false
-    $label.Dock = "Fill"
+    $label.AutoSize  = $false
+    $label.Dock      = "Fill"
     $label.TextAlign = "MiddleCenter"
     $form.Controls.Add($label)
 
-    $btn = New-Object System.Windows.Forms.Button
-    $btn.Text = "確認しました"
-    $btn.Font = New-Object System.Drawing.Font("Meiryo", 16)
-    $btn.Height = 80
-    $btn.Dock = "Bottom"
+    $btn           = New-Object System.Windows.Forms.Button
+    $btn.Text      = $confirmText
+    $btn.Font      = New-Object System.Drawing.Font("Meiryo", 16)
+    $btn.Height    = 80
+    $btn.Dock      = "Bottom"
     $btn.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#6366F1")
     $btn.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#FFFFFF")
     $btn.FlatStyle = "Flat"
@@ -59,49 +85,67 @@ function Show-BigAlarm {
     $form.ShowDialog() | Out-Null
 }
 
+# ===== Main monitor loop =====
 while ($true) {
     if (Test-Path $alarmsFile) {
         $content = [System.IO.File]::ReadAllText($alarmsFile, [System.Text.Encoding]::UTF8)
         try {
             $alarms = $content | ConvertFrom-Json
-            $updated = $false
-            $newAlarms = @()
+            if ($null -eq $alarms)      { $alarms = @() }
+            if ($alarms -isnot [Array]) { $alarms = @($alarms) }
+
             $now = Get-Date
 
             foreach ($alarm in $alarms) {
-                if ($alarm.status -eq 'pending') {
-                    $triggerTime = [DateTime]($alarm.triggerTime)
-                    if ($now -ge $triggerTime) {
-                        # Trigger Alarm! (Big popup window)
-                        Show-BigAlarm -title $alarm.title
-                        
-                        $updated = $true
-                        
-                        # Add to history if it's recurring? Actually, we'll just update it or mark completed.
-                        # We will copy the triggered alarm to history later if needed, but for now let's just make it completed or advance the time.
-                        if ($alarm.recurrence -eq 'daily') {
-                            $alarm.triggerTime = $triggerTime.AddDays(1).ToString("yyyy-MM-ddTHH:mm")
-                        } elseif ($alarm.recurrence -eq 'weekly') {
-                            $alarm.triggerTime = $triggerTime.AddDays(7).ToString("yyyy-MM-ddTHH:mm")
-                        } elseif ($alarm.recurrence -eq 'monthly') {
-                            $alarm.triggerTime = $triggerTime.AddMonths(1).ToString("yyyy-MM-ddTHH:mm")
-                        } else {
-                            $alarm.status = 'completed'
-                        }
-                    }
-                }
-                $newAlarms += $alarm
-            }
+                if ($alarm.status -ne 'pending') { continue }
 
-            if ($updated) {
-                # Save changes
-                $json = $newAlarms | ConvertTo-Json -Depth 10 -Compress
-                [System.IO.File]::WriteAllText($alarmsFile, $json, [System.Text.Encoding]::UTF8)
+                $triggerTime = [DateTime]($alarm.triggerTime)
+                if ($now -lt $triggerTime) { continue }
+
+                Write-Log "Triggering alarm: $($alarm.title)"
+                Show-BigAlarm -title $alarm.title
+                Write-Log "Alarm popup closed."
+
+                # Re-read file after popup (web UI may have changed it while popup was open)
+                # Update only the triggered alarm by ID, then write back
+                try {
+                    $latestContent = [System.IO.File]::ReadAllText($alarmsFile, [System.Text.Encoding]::UTF8)
+                    $latestAlarms  = $latestContent | ConvertFrom-Json
+                    if ($null -eq $latestAlarms)      { $latestAlarms = @() }
+                    if ($latestAlarms -isnot [Array]) { $latestAlarms = @($latestAlarms) }
+
+                    $target = $latestAlarms | Where-Object { $_.id -eq $alarm.id }
+                    if ($target) {
+                        if ($alarm.recurrence -eq 'daily') {
+                            $target.triggerTime = $triggerTime.AddDays(1).ToString("yyyy-MM-ddTHH:mm")
+                        } elseif ($alarm.recurrence -eq 'weekly') {
+                            $target.triggerTime = $triggerTime.AddDays(7).ToString("yyyy-MM-ddTHH:mm")
+                        } elseif ($alarm.recurrence -eq 'monthly') {
+                            $target.triggerTime = $triggerTime.AddMonths(1).ToString("yyyy-MM-ddTHH:mm")
+                        } else {
+                            $target.status = 'completed'
+                        }
+
+                        $json = $latestAlarms | ConvertTo-Json -Depth 10 -Compress
+                        if ($latestAlarms.Count -eq 1 -and -not $json.StartsWith("[")) {
+                            $json = "[$json]"
+                        } elseif ($latestAlarms.Count -eq 0) {
+                            $json = "[]"
+                        }
+                        $json = [Regex]::Unescape($json)
+
+                        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                        [System.IO.File]::WriteAllText($alarmsFile, $json, $utf8NoBom)
+                        Write-Log "Alarm updated: $($alarm.id)"
+                    }
+                } catch {
+                    Write-Log "Error updating alarm after popup: $_"
+                }
             }
         } catch {
-            # In case of broken json or file lock, just ignore and retry on next tick
+            Write-Log "Error in monitor loop: $_"
         }
     }
-    
+
     Start-Sleep -Seconds 10
 }

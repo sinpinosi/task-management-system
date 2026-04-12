@@ -79,13 +79,6 @@
                     ゴミ箱
                 </a>
             </nav>
-            <button class="btn-new-task" onclick="app.openModal()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                新規タスク
-            </button>
         </aside>
 
         <!-- Main Content -->
@@ -98,15 +91,6 @@
                             stroke-width="2">
                             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.6 5.6" />
                         </svg>
-                    </button>
-                    <button class="btn-new-task" style="display:none; margin-left:12px;" id="header-btn-new-template"
-                        onclick="app.openTemplateModal()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        新規テンプレート
                     </button>
                 </div>
             </header>
@@ -154,6 +138,13 @@
                         <button class="btn-cancel" style="padding: 6px 12px; font-size: 13px;"
                             onclick="app.clearFilters()">クリア</button>
                     </div>
+                    <button class="btn-new-task" id="header-btn-new-task" style="display:none; margin-left:auto;" onclick="app.openModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        新規タスク
+                    </button>
                 </div>
 
                 <!-- Column headers -->
@@ -196,6 +187,24 @@
 
             <!-- Templates Board View -->
             <div class="tasks-board" id="templates-board-view" style="display:none;">
+                <div class="filter-bar" style="display:flex; justify-content: flex-end; align-items: center;">
+                    <div class="filter-actions">
+                        <button class="btn-new-task" onclick="app.openTemplateModal()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            新規テンプレート
+                        </button>
+                    </div>
+                </div>
+
+                <div class="column-headers" style="padding-left: 16px;">
+                    <div class="col-task">テンプレート名</div>
+                    <div class="col-status">タスク数</div>
+                    <div class="col-actions"></div>
+                </div>
+
                 <div class="task-list" id="templates-list">
                     <!-- Templates injected by JS -->
                 </div>

@@ -29,7 +29,8 @@ const app = {
         try {
             const res = await fetch(`${API_BASE}/alarms`);
             if (res.ok) {
-                this.alarms = await res.json();
+                const data = await res.json();
+                this.alarms = Array.isArray(data) ? data : (data ? [data] : []);
             }
         } catch (e) {
             console.error('Failed to load alarms', e);
@@ -223,7 +224,8 @@ const app = {
         if (alarmsBoard) alarmsBoard.style.display = 'none';
 
         document.getElementById('header-btn-refresh').style.display = 'none';
-        document.getElementById('header-btn-new-template').style.display = 'none';
+        const headerBtnNewTask = document.getElementById('header-btn-new-task');
+        if (headerBtnNewTask) headerBtnNewTask.style.display = 'none';
 
         const filterBar = document.getElementById('task-filter-bar');
         if (filterBar) {
@@ -235,12 +237,14 @@ const app = {
             document.getElementById('page-title').textContent = 'Tasks overview';
             document.getElementById('tasks-board-view').style.display = 'flex';
             document.getElementById('header-btn-refresh').style.display = 'block';
+            if (headerBtnNewTask) headerBtnNewTask.style.display = 'flex';
             this.render();
         } else if (tabId === 'my-tasks') {
             document.getElementById('nav-my-tasks').classList.add('active');
             document.getElementById('page-title').textContent = 'My Tasks';
             document.getElementById('tasks-board-view').style.display = 'flex';
             document.getElementById('header-btn-refresh').style.display = 'block';
+            if (headerBtnNewTask) headerBtnNewTask.style.display = 'flex';
             this.render();
         } else if (tabId === 'archive') {
             document.getElementById('nav-archive').classList.add('active');
@@ -252,7 +256,6 @@ const app = {
             document.getElementById('nav-templates').classList.add('active');
             document.getElementById('page-title').textContent = 'Templates Management';
             document.getElementById('templates-board-view').style.display = 'block';
-            document.getElementById('header-btn-new-template').style.display = 'flex';
             this.renderTemplates();
         } else if (tabId === 'alarms') {
             document.getElementById('nav-alarms').classList.add('active');
