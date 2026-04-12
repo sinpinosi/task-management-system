@@ -77,7 +77,7 @@ while ($listener.IsListening) {
             }
             elseif ($request.HttpMethod -eq "GET" -and $path -eq "/api/tasks") {
                 $tasks = @()
-                $files = Get-ChildItem -Path $dataDirPath -Filter "*.json" | Where-Object { $_.Name -ne "alarms.json" }
+                $files = Get-ChildItem -Path $dataDirPath -Filter "t_*.json"
                 foreach ($file in $files) {
                     try {
                         $content = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
@@ -192,6 +192,27 @@ while ($listener.IsListening) {
                 $alarmsFile = Join-Path $dataDirPath "alarms.json"
                 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
                 [System.IO.File]::WriteAllText($alarmsFile, $body, $utf8NoBom)
+                
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            }
+            elseif ($request.HttpMethod -eq "GET" -and $path -eq "/api/pomodoros") {
+                $pomsFile = Join-Path $dataDirPath "pomodoros.json"
+                $resultJson = "[]"
+                if (Test-Path $pomsFile) {
+                    $resultJson = [System.IO.File]::ReadAllText($pomsFile, [System.Text.Encoding]::UTF8)
+                }
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes($resultJson)
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            }
+            elseif ($request.HttpMethod -eq "POST" -and $path -eq "/api/pomodoros") {
+                $sr = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                $body = $sr.ReadToEnd()
+                $sr.Close()
+                
+                $pomsFile = Join-Path $dataDirPath "pomodoros.json"
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText($pomsFile, $body, $utf8NoBom)
                 
                 $buffer = [System.Text.Encoding]::UTF8.GetBytes('{"success":true}')
                 $response.OutputStream.Write($buffer, 0, $buffer.Length)

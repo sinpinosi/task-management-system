@@ -17,12 +17,56 @@ const app = {
     alarms: [],
     draggingNodeId: null,
     draggingParentId: null,
+    pomodoros: [],
+    activePomodoroId: null,
+    pomodoroInterval: null,
 
     async init() {
         await this.loadConfig();
         await this.loadTemplates();
         await this.loadAlarms();
+        await this.loadPomodoros();
         await this.loadTasks();
+    },
+
+    async loadPomodoros() {
+        try {
+            const res = await fetch(`${API_BASE}/pomodoros`);
+            if (res.ok) {
+                this.pomodoros = await res.json();
+                this.migratePomodoros();
+            }
+        } catch (e) {
+            console.error('Failed to load pomodoros', e);
+        }
+    },
+
+    migratePomodoros() {
+        this.pomodoros = this.pomodoros.map(p => {
+            if (!p.steps) {
+                // Migrate old format (work/break)
+                p.steps = [
+                    { name: '集中', duration: p.workTime || (25 * 60) },
+                    { name: '休憩', duration: p.breakTime || (5 * 60) }
+                ];
+                p.currentStepIndex = 0;
+                delete p.workTime;
+                delete p.breakTime;
+            }
+            return p;
+        });
+    },
+
+    async savePomodoros() {
+        try {
+            await fetch(`${API_BASE}/pomodoros`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.pomodoros)
+            });
+        } catch (e) {
+            console.error('Failed to save pomodoros', e);
+        }
     },
 
     async loadAlarms() {
@@ -96,7 +140,9 @@ const app = {
         try {
             const res = await fetch(`${API_BASE}/tasks`);
             if (res.ok) {
-                this.tasks = await res.json();
+                const data = await res.json();
+                this.tasks = Array.isArray(data) ? data.filter(t => t && typeof t === 'object' && !Array.isArray(t) && t.id) : [];
+                
                 this.tasks.sort((a, b) => {
                     const orderA = a.order !== undefined ? a.order : 999999;
                     const orderB = b.order !== undefined ? b.order : 999999;
@@ -222,6 +268,8 @@ const app = {
         if (trashBoard) trashBoard.style.display = 'none';
         const alarmsBoard = document.getElementById('alarms-board-view');
         if (alarmsBoard) alarmsBoard.style.display = 'none';
+        const pomBoard = document.getElementById('pomodoro-board-view');
+        if (pomBoard) pomBoard.style.display = 'none';
 
         document.getElementById('header-btn-refresh').style.display = 'none';
         const headerBtnNewTask = document.getElementById('header-btn-new-task');
@@ -267,7 +315,357 @@ const app = {
             document.getElementById('page-title').textContent = 'ゴミ箱';
             if (document.getElementById('trash-board-view')) document.getElementById('trash-board-view').style.display = 'block';
             this.renderTrashList();
+        } else if (tabId === 'pomodoro') {
+            document.getElementById('nav-pomodoro').classList.add('active');
+            document.getElementById('page-title').textContent = 'ポモドーロタイマー';
+            document.getElementById('pomodoro-board-view').style.display = 'block';
+            this.renderPomodoros();
         }
+    },
+
+    openPomodoroModal(id = '') {
+        const container = document.getElementById('pom-steps-container');
+        container.innerHTML = '';
+        document.getElementById('pomodoro-form').reset();
+        document.getElementById('pomodoro-id').value = id;
+
+        if (id) {
+            const pom = this.pomodoros.find(p => p.id === id);
+            document.getElementById('pomodoro-modal-title').textContent = 'タイマーを編集';
+            document.getElementById('pom-title').value = pom.title;
+            if (pom.steps && pom.steps.length > 0) {
+                pom.steps.forEach(s => {
+                    const min = Math.floor(s.duration / 60);
+                    const sec = s.duration % 60;
+                    this.addPomodoroStepRow(s.name, min, sec);
+                });
+            } else {
+                this.addPomodoroStepRow('集中', 25, 0);
+                this.addPomodoroStepRow('休憩', 5, 0);
+            }
+        } else {
+            document.getElementById('pomodoro-modal-title').textContent = '新規タイマー';
+            this.addPomodoroStepRow('集中', 25, 0);
+            this.addPomodoroStepRow('休憩', 5, 0);
+        }
+
+        document.getElementById('pomodoro-modal').classList.add('active');
+    },
+
+    closePomodoroModal() {
+        document.getElementById('pomodoro-modal').classList.remove('active');
+    },
+
+    addPomodoroStepRow(name = '', min = 5, sec = 0) {
+        const container = document.getElementById('pom-steps-container');
+        const row = document.createElement('div');
+        row.className = 'pom-step-row';
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+        row.style.alignItems = 'center';
+        row.style.background = 'var(--bg-main)';
+        row.style.padding = '8px';
+        row.style.borderRadius = '8px';
+        row.style.border = '1px solid var(--border-color)';
+
+        row.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <button type="button" class="pom-step-btn move-up" onclick="app.movePomodoroStepRow(this, -1)" title="上に移動">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                </button>
+                <button type="button" class="pom-step-btn move-down" onclick="app.movePomodoroStepRow(this, 1)" title="下に移動">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            </div>
+            <input type="text" class="pom-step-name" placeholder="名称" value="${name}" required style="flex:2;">
+            <div style="display:flex; align-items:center; gap:4px; flex:1.5;">
+                <input type="number" class="pom-step-min" placeholder="分" value="${min}" required min="0" style="width:70px; text-align:right;">
+                <span style="font-size:12px; color:var(--text-secondary);">分</span>
+                <input type="number" class="pom-step-sec" placeholder="秒" value="${sec}" required min="0" max="59" style="width:60px; text-align:right;">
+                <span style="font-size:12px; color:var(--text-secondary);">秒</span>
+            </div>
+            <button type="button" class="pom-step-btn delete" onclick="this.parentElement.remove()" title="削除">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        `;
+        container.appendChild(row);
+    },
+
+    movePomodoroStepRow(btn, direction) {
+        const row = btn.closest('.pom-step-row');
+        if (!row) return;
+        if (direction === -1 && row.previousElementSibling) {
+            row.parentNode.insertBefore(row, row.previousElementSibling);
+        } else if (direction === 1 && row.nextElementSibling) {
+            row.parentNode.insertBefore(row.nextElementSibling, row);
+        }
+    },
+
+    async savePomodoro() {
+        const id = document.getElementById('pomodoro-id').value;
+        const title = document.getElementById('pom-title').value.trim();
+        if (!title) return alert("名前を入力してください。");
+
+        const steps = [];
+        document.querySelectorAll('.pom-step-row').forEach(row => {
+            const name = row.querySelector('.pom-step-name').value.trim();
+            const min = parseInt(row.querySelector('.pom-step-min').value) || 0;
+            const sec = parseInt(row.querySelector('.pom-step-sec').value) || 0;
+            if (name && (min > 0 || sec > 0)) {
+                steps.push({ name, duration: (min * 60) + sec });
+            }
+        });
+
+        if (steps.length === 0) return alert("少なくとも1つのステップが必要です。");
+
+        if (id) {
+            // Update
+            const pom = this.pomodoros.find(p => p.id === id);
+            if (pom) {
+                pom.title = title;
+                pom.steps = steps;
+                // If currently running, we might need to be careful. For now, reset if steps changed?
+                // Or just keep going if we're still within bounds.
+                if (pom.currentStepIndex >= steps.length) pom.currentStepIndex = 0;
+            }
+        } else {
+            // New
+            const newPom = {
+                id: 'pom_' + Date.now(),
+                title: title,
+                steps: steps,
+                currentStepIndex: 0,
+                timeLeft: steps[0].duration,
+                currentElapsed: 0,
+                cycles: 0,
+                status: 'stopped'
+            };
+            this.pomodoros.push(newPom);
+        }
+
+        await this.savePomodoros();
+        this.closePomodoroModal();
+        this.renderPomodoros();
+    },
+
+    deletePomodoro(id) {
+        if (!confirm('このタイマーを削除しますか？')) return;
+        if (this.activePomodoroId === id) {
+            this.stopPomodoro(id);
+        }
+        this.pomodoros = this.pomodoros.filter(p => p.id !== id);
+        this.savePomodoros();
+        this.renderPomodoros();
+    },
+
+    renderPomodoros() {
+        const listEl = document.getElementById('pomodoro-list');
+        listEl.innerHTML = '';
+
+        if (this.pomodoros.length === 0) {
+            listEl.innerHTML = '<div class="loading-state">タイマーがありません。右上から追加してください。</div>';
+            return;
+        }
+
+        this.pomodoros.forEach(p => {
+            const row = document.createElement('div');
+            row.className = `task-item task-row ${p.status === 'running' ? 'active' : ''}`;
+            row.style.paddingLeft = '16px';
+
+            const minutes = Math.floor(p.timeLeft / 60);
+            const seconds = p.timeLeft % 60;
+            const displayTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            const elapsedMin = Math.floor(p.currentElapsed / 60);
+            const elapsedSec = p.currentElapsed % 60;
+            const displayElapsed = `${String(elapsedMin).padStart(2, '0')}:${String(elapsedSec).padStart(2, '0')}`;
+
+            const currentStep = p.steps[p.currentStepIndex];
+            const stepName = currentStep ? currentStep.name : '不明';
+            const stepInfo = `${p.currentStepIndex + 1} / ${p.steps.length}`;
+
+            row.innerHTML = `
+                <div class="col-task" style="flex:2">
+                    <div style="font-weight: 500;">${p.title}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                        <span class="badge prio-medium" style="padding: 2px 6px;">${stepName}</span>
+                        <span style="margin-left:8px; opacity:0.7;" id="pom-step-info-${p.id}">[${stepInfo}]</span>
+                        <span id="pom-running-status-${p.id}">${p.status === 'running' ? '<span style="color:var(--primary-color); margin-left: 8px;">● 実行中</span>' : ''}</span>
+                    </div>
+                </div>
+                <div class="col-due" style="font-family: monospace; font-size: 16px; font-weight: 600;" id="pom-time-left-${p.id}">
+                    ${displayTime}
+                </div>
+                <div class="col-status">
+                    <div style="font-size: 13px;">
+                        <span style="color: var(--text-secondary);">Cycle:</span> <span id="pom-cycles-${p.id}">${p.cycles || 0}</span>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;" id="pom-elapsed-${p.id}">
+                        経過: ${displayElapsed}
+                    </div>
+                </div>
+                <div class="col-actions">
+                    <div class="task-actions">
+                        ${p.status !== 'running'
+                    ? `<button class="action-btn" title="開始" onclick="app.startPomodoro('${p.id}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                           </button>`
+                    : `<button class="action-btn" title="停止" onclick="app.pausePomodoro('${p.id}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                           </button>`
+                }
+                        <button class="action-btn" title="編集" onclick="app.openPomodoroModal('${p.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button class="action-btn" title="リセット" onclick="app.resetPomodoro('${p.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        </button>
+                        <button class="action-btn delete" title="削除" onclick="app.deletePomodoro('${p.id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            listEl.appendChild(row);
+        });
+    },
+
+    startPomodoro(id) {
+        // Stop current active if any
+        if (this.activePomodoroId && this.activePomodoroId !== id) {
+            this.pausePomodoro(this.activePomodoroId);
+        }
+
+        const pom = this.pomodoros.find(p => p.id === id);
+        if (!pom) return;
+
+        pom.status = 'running';
+        this.activePomodoroId = id;
+
+        if (this.pomodoroInterval) clearInterval(this.pomodoroInterval);
+        this.pomodoroInterval = setInterval(() => this.tickPomodoro(), 1000);
+
+        this.renderPomodoros();
+    },
+
+    pausePomodoro(id) {
+        const pom = this.pomodoros.find(p => p.id === id);
+        if (pom) pom.status = 'paused';
+        if (this.activePomodoroId === id) {
+            clearInterval(this.pomodoroInterval);
+            this.activePomodoroId = null;
+        }
+        this.renderPomodoros();
+    },
+
+    resetPomodoro(id) {
+        const pom = this.pomodoros.find(p => p.id === id);
+        if (!pom) return;
+
+        if (this.activePomodoroId === id) {
+            clearInterval(this.pomodoroInterval);
+            this.activePomodoroId = null;
+        }
+
+        pom.status = 'stopped';
+        pom.currentStepIndex = 0;
+        pom.timeLeft = pom.steps[0].duration;
+        pom.currentElapsed = 0;
+        pom.cycles = 0;
+        this.renderPomodoros();
+    },
+
+    stopPomodoro(id) {
+        this.pausePomodoro(id);
+        const pom = this.pomodoros.find(p => p.id === id);
+        if (pom) {
+            pom.status = 'stopped';
+        }
+    },
+
+    tickPomodoro() {
+        if (!this.activePomodoroId) return;
+
+        const pom = this.pomodoros.find(p => p.id === this.activePomodoroId);
+        if (!pom || pom.status !== 'running') return;
+
+        pom.timeLeft--;
+        pom.currentElapsed++;
+
+        // Update elements directly for smoothness
+        const timeEl = document.getElementById(`pom-time-left-${pom.id}`);
+        const elapsedEl = document.getElementById(`pom-elapsed-${pom.id}`);
+        if (timeEl) {
+            const min = Math.floor(pom.timeLeft / 60);
+            const sec = pom.timeLeft % 60;
+            timeEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+        if (elapsedEl) {
+            const min = Math.floor(pom.currentElapsed / 60);
+            const sec = pom.currentElapsed % 60;
+            elapsedEl.textContent = `経過: ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        if (pom.timeLeft <= 0) {
+            this.triggerPomodoroNotification(pom);
+
+            // Move to next step
+            pom.currentStepIndex++;
+            if (pom.currentStepIndex >= pom.steps.length) {
+                // Completed one full cycle
+                pom.currentStepIndex = 0;
+                pom.cycles = (pom.cycles || 0) + 1;
+            }
+
+            pom.timeLeft = pom.steps[pom.currentStepIndex].duration;
+            pom.currentElapsed = 0;
+
+            // Auto continue instead of pause
+            // this.pausePomodoro(pom.id);
+            this.renderPomodoros(); // Full render once on step change
+        }
+    },
+
+    async triggerPomodoroNotification(pom) {
+        // Capture indices and names IMMEDIATELY before any 'await' 
+        // to avoid race condition with tickPomodoro's synchronous increments.
+        const finishedStep = pom.steps[pom.currentStepIndex];
+        const nextStepIndex = (pom.currentStepIndex + 1) % pom.steps.length;
+        const nextStep = pom.steps[nextStepIndex];
+        const pomTitle = pom.title;
+        const hasNext = pom.steps.length > 1;
+
+        // Synchronize with server first to avoid overwriting completed statuses
+        await this.loadAlarms();
+
+        let title = `${pomTitle}\n${finishedStep.name}`;
+        if (hasNext) {
+            title += `\n（next:${nextStep.name}）`;
+        }
+
+        // Clean up old completed pomodoro notifications (older than 2 hours) to keep alarms.json slim
+        const now = new Date();
+        const twoHoursAgo = now.getTime() - (2 * 60 * 60 * 1000);
+        this.alarms = this.alarms.filter(a => {
+            if (a.id.startsWith('pom_notif_') && a.status === 'completed') {
+                const ts = parseInt(a.id.replace('pom_notif_', ''));
+                if (ts < twoHoursAgo) return false;
+            }
+            return true;
+        });
+
+        const alarmDateStr = now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+
+        const newAlarm = {
+            id: 'pom_notif_' + now.getTime(),
+            title: title,
+            triggerTime: alarmDateStr,
+            recurrence: 'none',
+            status: 'pending'
+        };
+
+        this.alarms.push(newAlarm);
+        await this.saveAlarmsToServer();
     },
 
     renderTemplates() {
@@ -980,7 +1378,7 @@ const app = {
 
     async emptyTrash() {
         if (!confirm("ゴミ箱内のすべてのタスクを完全に削除しますか？")) return;
-        
+
         const trashedIds = [];
         const findTrashed = (taskList) => {
             taskList.forEach(task => {
@@ -1000,7 +1398,7 @@ const app = {
         for (const id of trashedIds) {
             await this.deleteTaskInternal(id);
         }
-        
+
         this.renderTrashList();
     },
 
@@ -1072,9 +1470,9 @@ const app = {
     renderAlarms() {
         const listEl = document.getElementById('alarms-list');
         listEl.innerHTML = '';
-        
+
         const filtered = this.alarms.filter(a => this.alarmView === 'active' ? a.status === 'pending' : a.status === 'completed');
-        
+
         if (filtered.length === 0) {
             listEl.innerHTML = '<div class="loading-state">アラームがありません。</div>';
             return;
@@ -1090,7 +1488,7 @@ const app = {
                 row.style.opacity = '0.6';
                 row.style.background = 'var(--bg-surface)';
             }
-            
+
             const recLabel = {
                 'none': 'なし',
                 'daily': '日次',
@@ -1143,7 +1541,7 @@ const app = {
         form.reset();
         document.getElementById('alarm-id').value = '';
         document.getElementById('alarm-modal-title').textContent = '新規アラーム作成';
-        
+
         // Default to now + 30 mins
         const now = new Date();
         now.setMinutes(now.getMinutes() + 30);
@@ -1221,7 +1619,7 @@ const app = {
     copyAlarmToActive(id) {
         const alarm = this.alarms.find(a => a.id === id);
         if (!alarm) return;
-        
+
         this.openAlarmModal();
         document.getElementById('alarm-modal-title').textContent = '再設定';
         document.getElementById('alarm-title').value = alarm.title;
